@@ -6,9 +6,11 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+var connectionString = builder.Configuration.GetConnectionString("Blog");
+builder.Services.AddSqlite<BlogContext>(connectionString);
+
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
   app.UseSwagger();
@@ -17,9 +19,6 @@ if (app.Environment.IsDevelopment())
   await app.MigrateDb();
   Console.WriteLine("Database migrated successfully.");
 }
-
-var connectionString = builder.Configuration.GetConnectionString("Blog");
-builder.Services.AddSqlite<BlogContext>(connectionString);
 
 app.MapGet("/", () => "Hi!");
 
