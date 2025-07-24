@@ -1,0 +1,38 @@
+@Blog.Api_HostAddress = http://localhost:55001
+
+### Get All
+GET {{Blog.Api_HostAddress}}/posts
+Accept: application/json
+
+### Add a few
+POST {{Blog.Api_HostAddress}}/posts
+Content-Type: application/json
+
+{
+  "AuthorId": 1,
+  "Title": "Demon Slayer Movie Rules!",
+  "Description": "4 billion Yen sales",
+  "Content": "2005SADLGADGDFLGAFLGFGPOSF&#RBOD#&G#ROFG#ORFN#GRF"
+}
+
+### Get by Id
+GET {{Blog.Api_HostAddress}}/posts/2
+Accept: application/json
+
+### Get by Id with Author Details
+GET {{Blog.Api_HostAddress}}/posts/2?includeAuthor=true
+Accept: application/json
+
+### Update by Id
+PUT {{Blog.Api_HostAddress}}/posts/2
+Content-Type: application/json
+
+{
+  "AuthorId": 1,
+  "Title": "Demon Slayer Movie Rules!",
+  "Description": "4 billion Yen sales",
+  "Content": "So cool!!!"
+}
+
+### Delete by Id
+DELETE {{Blog.Api_HostAddress}}/posts/1

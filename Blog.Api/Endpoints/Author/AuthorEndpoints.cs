@@ -16,12 +16,12 @@ public static class AuthorEndpoints
   {
     app.MapGet("/authors", async (BlogContext dbContext) =>
     {
-      var genres = await dbContext.Authors
+      var authors = await dbContext.Authors
           .Select(a => a.ToDto())
           .AsNoTracking()
           .ToListAsync();
 
-      return Results.Ok(genres);
+      return Results.Ok(authors);
     });
   }
 }
