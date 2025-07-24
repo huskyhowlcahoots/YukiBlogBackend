@@ -6,7 +6,7 @@ namespace Blog.Api.DbEntities.Post;
 [ExcludeFromCodeCoverage]
 public class PostEntity
 {
-  public int PostId { get; set; }
+  public int Id { get; set; }
 
   public int AuthorId { get; set; }
 

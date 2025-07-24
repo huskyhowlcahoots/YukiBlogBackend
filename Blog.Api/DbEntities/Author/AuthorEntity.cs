@@ -5,7 +5,7 @@ namespace Blog.Api.DbEntities.Author;
 [ExcludeFromCodeCoverage]
 public class AuthorEntity
 {
-  public int AuthorId { get; set; }
+  public int Id { get; set; }
 
   public required string Name { get; set; } = string.Empty;
 
