@@ -1,4 +1,5 @@
 using Blog.Api.Data;
+using Blog.Api.Data.Helpers;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,6 +13,9 @@ if (app.Environment.IsDevelopment())
 {
   app.UseSwagger();
   app.UseSwaggerUI();
+
+  await app.MigrateDb();
+  Console.WriteLine("Database migrated successfully.");
 }
 
 var connectionString = builder.Configuration.GetConnectionString("Blog");
