@@ -25,6 +25,7 @@
   <ItemGroup>
     <Folder Include="Component.Tests\" />
     <Folder Include="Integration.Tests\" />
+    <Folder Include="Unit.Tests\" />
   </ItemGroup>
 
   <ItemGroup>
