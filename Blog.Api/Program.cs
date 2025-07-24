@@ -1,3 +1,5 @@
+using Blog.Api.Data;
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddEndpointsApiExplorer();
@@ -11,6 +13,9 @@ if (app.Environment.IsDevelopment())
   app.UseSwagger();
   app.UseSwaggerUI();
 }
+
+var connectionString = builder.Configuration.GetConnectionString("Blog");
+builder.Services.AddSqlite<BlogContext>(connectionString);
 
 app.MapGet("/", () => "Hi!");
 
