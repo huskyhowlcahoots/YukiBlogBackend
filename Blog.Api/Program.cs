@@ -1,5 +1,6 @@
 using Blog.Api.Data;
 using Blog.Api.Data.Helpers;
+using Blog.Api.Endpoints.Author;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,6 +11,8 @@ var connectionString = builder.Configuration.GetConnectionString("Blog");
 builder.Services.AddSqlite<BlogContext>(connectionString);
 
 var app = builder.Build();
+
+app.MapAuthorEndpoints();
 
 if (app.Environment.IsDevelopment())
 {
