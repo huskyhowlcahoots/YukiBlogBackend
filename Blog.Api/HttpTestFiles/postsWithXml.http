@@ -1,10 +1,10 @@
-@Blog.Api_HostAddress = http://localhost:55000
+@Blog.Api_HostAddress = http://localhost:55001
 
 ### Get All
 GET {{Blog.Api_HostAddress}}/posts
 Accept: application/xml
 
-### Add a few
+### Add a twice, then you can update the 2nd via PUT
 POST {{Blog.Api_HostAddress}}/posts
 Content-Type: application/xml
 Accept: application/xml

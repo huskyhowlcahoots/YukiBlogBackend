@@ -6,6 +6,9 @@ using Blog.Api.Dtos.Post;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
+using ZiggyCreatures.Caching.Fusion;
 
 namespace Blog.Tests.Component.Tests;
 
@@ -14,6 +17,8 @@ public class PostsControllerTests
 {
   private BlogContext _dbContext;
   private PostsController _controller;
+  private FusionCache? _fusionCache;
+  private readonly AuthorEntity author = new() { Id = 1, Name = "Nicklas", Surname = "Pillay" };
 
   [SetUp]
   public void SetUp()
@@ -21,48 +26,85 @@ public class PostsControllerTests
     var options = new DbContextOptionsBuilder<BlogContext>()
         .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
         .Options;
+
     _dbContext = new BlogContext(options);
-    _controller = new PostsController(_dbContext);
+
+    // FusionCache is tricky to set up in tests, so we use a simple in-memory cache to help simulate the cache behavior.
+    var fusionCacheOptions = Options.Create(new FusionCacheOptions());
+    var memoryCache = new MemoryCache(new MemoryCacheOptions());
+    _fusionCache = new FusionCache(fusionCacheOptions, memoryCache);
+
+    _controller = new PostsController(_dbContext, _fusionCache);
   }
 
   [TearDown]
   public void TearDown()
   {
     _dbContext.Dispose();
+    _fusionCache?.Dispose();
   }
 
   [Test]
-  public async Task GetPosts_ReturnsAllPosts()
+  public async Task GetPosts_ReturnsAllPosts_FromDatabase()
   {
     // Arrange
-    var author = new AuthorEntity { Id = 1, Name = "John", Surname = "Doe" };
-    var post = new PostEntity { Id = 1, AuthorId = 1, Author = author, Title = "Test1", Description = "Desc", Content = "Content" };
-
+    var post = new PostEntity { Id = 1, AuthorId = 1, Author = author, Title = "DB Post", Description = "Lorem", Content = "Ipsum" };
     _dbContext.Authors.Add(author);
     _dbContext.Posts.Add(post);
     await _dbContext.SaveChangesAsync();
 
     // Act
-    var result = await _controller.GetPosts();
+    var response = await _controller.GetPosts();
 
     // Assert
-    Assert.That(result.Result, Is.InstanceOf<OkObjectResult>());
-    var okResult = result.Result as OkObjectResult;
-    var posts = okResult!.Value as IEnumerable<GetPostDto>;
+    Assert.That(response.Result, Is.InstanceOf<OkObjectResult>());
+    var result = (OkObjectResult)response.Result!;
+    var posts = (IEnumerable<GetPostDto>)result.Value!;
     Assert.Multiple(() =>
     {
-      Assert.That(posts!.Count(), Is.EqualTo(1));
-      Assert.That(posts!.First().Title, Is.EqualTo("Test1"));
+      Assert.That(posts.Count(), Is.EqualTo(1));
+      Assert.That(posts.First().Title, Is.EqualTo("DB Post"));
     });
   }
 
+  [Test]
+  public async Task GetPosts_ReturnsAllPosts_FromCache_AndIsQuickerThanDatabase()
+  {
+    // Arrange
+    var post = new PostEntity { Id = 20, AuthorId = 1, Author = author, Title = "Cached Post", Description = "Cached Descript", Content = "Cached Content" };
+    _dbContext.Authors.Add(author);
+    _dbContext.Posts.Add(post);
+    await _dbContext.SaveChangesAsync();
+
+    // Act - first call, cache miss, hits DB and populates cache
+    var cacheMissTime = System.Diagnostics.Stopwatch.StartNew();
+    var response1 = await _controller.GetPosts();
+    cacheMissTime.Stop();
+    Console.WriteLine($"Cache miss took: {cacheMissTime.ElapsedMilliseconds} ms");
+
+    // Act - second call, should hit cache now (no DB query)
+    var cacheHitTime = System.Diagnostics.Stopwatch.StartNew();
+    var response2 = await _controller.GetPosts();
+    cacheHitTime.Stop();
+    Console.WriteLine($"Cache hit took: {cacheHitTime.ElapsedMilliseconds} ms");
+
+    // Assert results from cache hit and second call is faster than first call
+    Assert.That(response2.Result, Is.InstanceOf<OkObjectResult>());
+    var result = (OkObjectResult)response2.Result!;
+    var posts = (IEnumerable<GetPostDto>)result.Value!;
+    Assert.Multiple(() =>
+    {
+      Assert.That(posts.Count(), Is.EqualTo(1));
+      Assert.That(posts.First().Title, Is.EqualTo("Cached Post"));
+    });
+    Assert.That(cacheHitTime.ElapsedMilliseconds, Is.LessThan(cacheMissTime.ElapsedMilliseconds), "Second call should be faster due to cache hit");
+  }
 
   [Test]
   public async Task GetPostById_NoQueryString_ReturnsPost()
   {
     // Arrange
-    var author = new AuthorEntity { Id = 3, Name = "Alice", Surname = "Brown" };
-    var post = new PostEntity { Id = 3, AuthorId = 3, Author = author, Title = "SinglePost", Description = "SinglePostDesc", Content = "SinglePostContent" };
+    var post = new PostEntity { Id = 1, AuthorId = 1, Author = author, Title = "SinglePost", Description = "SinglePostDesc", Content = "SinglePostContent" };
     _dbContext.Authors.Add(author);
     _dbContext.Posts.Add(post);
     await _dbContext.SaveChangesAsync();
@@ -73,50 +115,49 @@ public class PostsControllerTests
       HttpContext = new DefaultHttpContext()
     };
     _controller.ControllerContext = controllerContext;
-    var result = await _controller.GetPostById(3);
+    var response = await _controller.GetPostById(1);
 
     // Assert
-    Assert.That(result, Is.InstanceOf<OkObjectResult>());
-    var okResult = result as OkObjectResult;
-    var dto = okResult!.Value as GetPostDto;
-    Assert.That(dto!.Title, Is.EqualTo("SinglePost"));
+    Assert.That(response, Is.InstanceOf<OkObjectResult>());
+    var result = response as OkObjectResult;
+    var dto = result!.Value as GetPostDto;
+    Assert.That(dto!.Title, Is.EqualTo(post.Title));
   }
 
   [Test]
-  public async Task GetPostById_WithRandomQueryString_ReturnsDefaultGetPostDto()
+  public async Task GetPostById_WithIncorrectQueryString_ReturnsDefaultGetPostDto()
   {
     // Arrange
-    var author = new AuthorEntity { Id = 1, Name = "Leo", Surname = "Tolstoy" };
     var post = new PostEntity
     {
       Id = 1,
       AuthorId = 1,
       Author = author,
       Title = "War and Peace",
-      Description = "Historical Novel",
+      Description = "Historical",
       Content = "A long story"
     };
     _dbContext.Authors.Add(author);
     _dbContext.Posts.Add(post);
     await _dbContext.SaveChangesAsync();
 
-    var context = new DefaultHttpContext();
-    context.Request.QueryString = new QueryString("?includeAuthor=banana");
-    _controller.ControllerContext = new ControllerContext { HttpContext = context };
+    var httpContext = new DefaultHttpContext();
+    httpContext.Request.QueryString = new QueryString("?includeAuthor=banana");
+    _controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
 
     // Act
-    var result = await _controller.GetPostById(1);
+    var response = await _controller.GetPostById(1);
 
     // Assert
-    Assert.That(result, Is.InstanceOf<OkObjectResult>());
-    var okResult = result as OkObjectResult;
-    var dto = okResult!.Value as GetPostDto;
+    Assert.That(response, Is.InstanceOf<OkObjectResult>());
+    var result = response as OkObjectResult;
+    var dto = result!.Value as GetPostDto;
     Assert.Multiple(() =>
     {
       Assert.That(dto!.Title, Is.EqualTo(post.Title));
       Assert.That(dto.AuthorId is 1);
       Assert.That(dto is not null);
-      Assert.That(dto is GetPostDto);
+      Assert.That(dto is GetPostDto); // this is a normal GetPostDto
     });
   }
 
@@ -124,40 +165,39 @@ public class PostsControllerTests
   public async Task GetPostById_WithIncludeAuthorTrue_ReturnsDtoWithAuthorDetails()
   {
     // Arrange
-    var author = new AuthorEntity { Id = 2, Name = "George", Surname = "Orwell" };
     var post = new PostEntity
     {
-      Id = 2,
-      AuthorId = 2,
+      Id = 9,
+      AuthorId = 1,
       Author = author,
-      Title = "1984",
-      Description = "Dystopian Novel",
+      Title = "Tragedy in New York",
+      Description = "Tragic Stuff",
       Content = "Big Brother is watching"
     };
     _dbContext.Authors.Add(author);
     _dbContext.Posts.Add(post);
     await _dbContext.SaveChangesAsync();
 
-    var context = new DefaultHttpContext();
-    context.Request.QueryString = new QueryString("?includeAuthor=true");
-    _controller.ControllerContext = new ControllerContext { HttpContext = context };
+    var httpContext = new DefaultHttpContext();
+    httpContext.Request.QueryString = new QueryString("?includeAuthor=true");
+    _controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
 
     // Act
-    var result = await _controller.GetPostById(2);
+    var response = await _controller.GetPostById(9);
 
     // Assert
-    Assert.That(result, Is.InstanceOf<OkObjectResult>());
-    var okResult = result as OkObjectResult;
-    var dto = okResult!.Value as GetPostWithAuthorDetailsDto;
+    Assert.That(response, Is.InstanceOf<OkObjectResult>());
+    var result = response as OkObjectResult;
+    var dto = result!.Value as GetPostWithAuthorDetailsDto;
 
     Assert.Multiple(() =>
     {
       Assert.That(dto, Is.Not.Null);
       Assert.That(dto is GetPostWithAuthorDetailsDto);
-      Assert.That(dto!.Title, Is.EqualTo("1984"));
+      Assert.That(dto!.Title, Is.EqualTo(post.Title));
       Assert.That(dto.AuthorDetails, Is.Not.Null);
-      Assert.That(dto.AuthorDetails!.AuthorId, Is.EqualTo(2));
-      Assert.That(dto.AuthorDetails!.Name, Is.EqualTo("George"));
+      Assert.That(dto.AuthorDetails!.AuthorId, Is.EqualTo(1));
+      Assert.That(dto.AuthorDetails!.Name, Is.EqualTo("Nicklas"));
     });
   }
 
@@ -166,24 +206,23 @@ public class PostsControllerTests
   public async Task AddPost_CreatesNewPost()
   {
     // Arrange
-    var author = new AuthorEntity { Id = 5, Name = "Carl", Surname = "Green" };
     _dbContext.Authors.Add(author);
     await _dbContext.SaveChangesAsync();
 
     var newPost = new CreatePostDto
     {
-      AuthorId = 5,
+      AuthorId = 1,
       Title = "NewPost",
       Description = "NewDesc",
       Content = "NewContent"
     };
 
     // Act
-    var result = await _controller.AddPost(newPost);
+    var response = await _controller.AddPost(newPost);
 
     // Assert
-    Assert.That(result.Result, Is.InstanceOf<CreatedAtRouteResult>());
-    var createdResult = result.Result as CreatedAtRouteResult;
+    Assert.That(response.Result, Is.InstanceOf<CreatedAtRouteResult>());
+    var createdResult = response.Result as CreatedAtRouteResult;
     Assert.That(createdResult, Is.Not.Null);
     var dto = createdResult.Value as GetPostDto;
     Assert.That(dto, Is.Not.Null);
@@ -194,45 +233,43 @@ public class PostsControllerTests
   public async Task UpdatePost_UpdatesExistingPost()
   {
     // Arrange
-    var author = new AuthorEntity { Id = 6, Name = "Dana", Surname = "Blue" };
-    var post = new PostEntity { Id = 6, AuthorId = 6, Author = author, Title = "OldTitle", Description = "OldDesc", Content = "OldContent" };
+    var post = new PostEntity { Id = 1, AuthorId = 1, Author = author, Title = "OldTitle", Description = "OldDesc", Content = "OldContent" };
     _dbContext.Authors.Add(author);
     _dbContext.Posts.Add(post);
     await _dbContext.SaveChangesAsync();
 
     var updatedPost = new UpdatePostDto
     {
-      AuthorId = 6,
+      AuthorId = 1,
       Title = "UpdatedTitle",
       Description = "UpdatedDesc",
       Content = "UpdatedContent"
     };
 
     // Act
-    var result = await _controller.UpdatePost(6, updatedPost);
+    var response = await _controller.UpdatePost(1, updatedPost);
 
     // Assert
-    Assert.That(result, Is.InstanceOf<NoContentResult>());
-    var updated = await _dbContext.Posts.FindAsync(6);
-    Assert.That(updated!.Title, Is.EqualTo("UpdatedTitle"));
+    Assert.That(response, Is.InstanceOf<NoContentResult>());
+    var result = await _dbContext.Posts.FindAsync(1);
+    Assert.That(result!.Title, Is.EqualTo(updatedPost.Title));
   }
 
   [Test]
   public async Task DeletePost_RemovesPost()
   {
     // Arrange
-    var author = new AuthorEntity { Id = 7, Name = "Eve", Surname = "Black" };
     var post = new PostEntity { Id = 7, AuthorId = 7, Author = author, Title = "ToDelete", Description = "ToDeleteDesc", Content = "ToDeleteContent" };
     _dbContext.Authors.Add(author);
     _dbContext.Posts.Add(post);
     await _dbContext.SaveChangesAsync();
 
     // Act
-    var result = await _controller.DeletePost(7);
+    var response = await _controller.DeletePost(7);
 
     // Assert
-    Assert.That(result, Is.InstanceOf<NoContentResult>());
-    var deleted = await _dbContext.Posts.FindAsync(7);
-    Assert.That(deleted, Is.Null);
+    Assert.That(response, Is.InstanceOf<NoContentResult>());
+    var result = await _dbContext.Posts.FindAsync(7);
+    Assert.That(result, Is.Null);
   }
 }

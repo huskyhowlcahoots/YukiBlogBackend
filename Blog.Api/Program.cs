@@ -1,6 +1,8 @@
 using Blog.Api.Data;
 using Blog.Api.Data.Helpers;
 using System.Diagnostics.CodeAnalysis;
+using ZiggyCreatures.Caching.Fusion;
+using ZiggyCreatures.Caching.Fusion.Serialization.NewtonsoftJson;
 
 namespace Blog.Api;
 
@@ -16,6 +18,13 @@ public class Program
 
     builder.Services.AddControllers()
       .AddXmlSerializerFormatters();
+
+    builder.Services.AddFusionCache()
+      .WithDefaultEntryOptions(new FusionCacheEntryOptions
+      {
+        Duration = TimeSpan.FromMinutes(5)
+      })
+      .WithSerializer(new FusionCacheNewtonsoftJsonSerializer());
 
     var app = builder.Build();
     app.MapControllers();

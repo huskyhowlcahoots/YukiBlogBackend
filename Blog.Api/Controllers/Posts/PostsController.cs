@@ -4,6 +4,7 @@ using Blog.Api.Dtos.Post;
 using Blog.Api.Mappings.Post;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using ZiggyCreatures.Caching.Fusion;
 
 namespace Blog.Api.Controllers.Posts;
 
@@ -11,19 +12,28 @@ namespace Blog.Api.Controllers.Posts;
 [Route("posts")]
 [Produces("application/json", "application/xml")]
 [Consumes("application/json", "application/xml")]
-public class PostsController(BlogContext dbContext) : ControllerBase
+public class PostsController(BlogContext dbContext, IFusionCache fusionCache) : ControllerBase
 {
+  private const string CacheKey = "all-posts-cache-key";
   private readonly BlogContext _dbContext = dbContext;
+  private readonly IFusionCache _fusionCache = fusionCache;
 
   // GET all via /posts
   [HttpGet]
   public async Task<ActionResult<IEnumerable<GetPostDto>>> GetPosts()
   {
-    var posts = await _dbContext.Posts
-        .Include(post => post.Author)
-        .Select(post => post.ToGetPostDto())
-        .AsNoTracking()
-        .ToListAsync();
+    var posts = await _fusionCache.GetOrSetAsync(
+      CacheKey,
+      async token =>
+      {
+        return await _dbContext.Posts
+          .Include(post => post.Author)
+          .Select(post => post.ToGetPostDto())
+          .AsNoTracking()
+          .ToListAsync(token);
+      },
+      TimeSpan.FromMinutes(5)
+    );
 
     return Ok(posts);
   }
@@ -65,6 +75,7 @@ public class PostsController(BlogContext dbContext) : ControllerBase
 
     _dbContext.Posts.Add(post);
     await _dbContext.SaveChangesAsync();
+    _fusionCache.Remove(CacheKey);
 
     var postDto = post.ToGetPostDto();
 
@@ -84,6 +95,7 @@ public class PostsController(BlogContext dbContext) : ControllerBase
         .SetValues(updatedPost.ToEntity(id));
 
     await _dbContext.SaveChangesAsync();
+    _fusionCache.Remove(CacheKey);
 
     return NoContent();
   }
@@ -98,6 +110,7 @@ public class PostsController(BlogContext dbContext) : ControllerBase
 
     _dbContext.Posts.Remove(post);
     await _dbContext.SaveChangesAsync();
+    _fusionCache.Remove(CacheKey);
 
     return NoContent();
   }
