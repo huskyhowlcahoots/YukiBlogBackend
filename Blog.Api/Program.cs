@@ -1,21 +1,31 @@
 using Blog.Api.Data;
 using Blog.Api.Data.Helpers;
+using System.Diagnostics.CodeAnalysis;
 
-var builder = WebApplication.CreateBuilder(args);
+namespace Blog.Api;
 
-var connectionString = builder.Configuration.GetConnectionString("Blog");
-builder.Services.AddSqlite<BlogContext>(connectionString);
-
-builder.Services.AddControllers()
-  .AddXmlSerializerFormatters();
-
-var app = builder.Build();
-app.MapControllers();
-
-if (app.Environment.IsDevelopment())
+[ExcludeFromCodeCoverage]
+public class Program
 {
-  await app.MigrateDb();
-  Console.WriteLine("Database was migrated successfully.");
-}
+  public static async Task Main(string[] args)
+  {
+    var builder = WebApplication.CreateBuilder(args);
 
-app.Run();
+    var connectionString = builder.Configuration.GetConnectionString("Blog");
+    builder.Services.AddSqlite<BlogContext>(connectionString);
+
+    builder.Services.AddControllers()
+      .AddXmlSerializerFormatters();
+
+    var app = builder.Build();
+    app.MapControllers();
+
+    if (app.Environment.IsDevelopment())
+    {
+      await app.MigrateDb();
+      Console.WriteLine("Database was migrated successfully.");
+    }
+
+    app.Run();
+  }
+}
