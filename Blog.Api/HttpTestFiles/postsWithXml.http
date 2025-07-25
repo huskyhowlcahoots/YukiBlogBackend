@@ -1,0 +1,41 @@
+@Blog.Api_HostAddress = http://localhost:55000
+
+### Get All
+GET {{Blog.Api_HostAddress}}/posts
+Accept: application/xml
+
+### Add a few
+POST {{Blog.Api_HostAddress}}/posts
+Content-Type: application/xml
+Accept: application/xml
+
+<CreatePostDto xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <AuthorId>1</AuthorId>
+  <Title>ONE PIECE EGGHEAD MOVIE</Title>
+  <Description>4 billion berries</Description>
+  <Content>SOOOO AMAZING FILLED WITH ACTION</Content>
+</CreatePostDto>
+
+### Get by Id
+GET {{Blog.Api_HostAddress}}/posts/2
+Accept: application/xml
+
+### Get by Id with Author Details
+GET {{Blog.Api_HostAddress}}/posts/2?includeAuthor=true
+Accept: application/xml
+
+### Update by Id
+PUT {{Blog.Api_HostAddress}}/posts/2
+Content-Type: application/xml
+Accept: application/xml
+
+<UpdatePostDto xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <AuthorId>1</AuthorId>
+  <Title>Demon Slayer Movie Rules!</Title>
+  <Description>4 billion Yen sales</Description>
+  <Content>So cool OMG!!!!</Content>
+</UpdatePostDto>
+
+### Delete by Id
+DELETE {{Blog.Api_HostAddress}}/posts/3
+Accept: application/xml

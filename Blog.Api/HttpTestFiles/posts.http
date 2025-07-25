@@ -1,4 +1,4 @@
-@Blog.Api_HostAddress = http://localhost:55001
+@Blog.Api_HostAddress = http://localhost:55000
 
 ### Get All
 GET {{Blog.Api_HostAddress}}/posts

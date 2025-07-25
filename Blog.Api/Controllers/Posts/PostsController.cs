@@ -1,0 +1,106 @@
+using Blog.Api.Data;
+using Blog.Api.DbEntities.Post;
+using Blog.Api.Dtos.Post;
+using Blog.Api.Mappings.Post;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+namespace Blog.Api.Controllers.Posts;
+
+[ApiController]
+[Route("posts")]
+[Produces("application/json", "application/xml")]
+[Consumes("application/json", "application/xml")]
+public class PostsController : ControllerBase
+{
+  private readonly BlogContext _dbContext;
+
+  public PostsController(BlogContext dbContext)
+  {
+    _dbContext = dbContext;
+  }
+
+  // GET all via /posts
+  [HttpGet]
+  public async Task<ActionResult<IEnumerable<GetPostDto>>> GetPosts()
+  {
+    var posts = await _dbContext.Posts
+        .Include(post => post.Author)
+        .Select(post => post.ToGetPostDto())
+        .AsNoTracking()
+        .ToListAsync();
+
+    return Ok(posts);
+  }
+
+  // GET single post by ID via /posts/{id}?includeAuthor=true
+  [HttpGet("{id:int}", Name = "GetPostById")]
+  public async Task<ActionResult> GetPostById(int id)
+  {
+    var queryValue = HttpContext.Request.Query["includeAuthor"].ToString();
+    bool includeAuthor = queryValue.Equals("true", StringComparison.OrdinalIgnoreCase);
+
+    PostEntity? post;
+
+    if (includeAuthor)
+    {
+      post = await _dbContext.Posts
+          .Include(p => p.Author)
+          .FirstOrDefaultAsync(p => p.Id == id);
+    }
+    else
+    {
+      post = await _dbContext.Posts.FindAsync(id);
+    }
+
+    if (post is null)
+      return NotFound();
+
+    if (includeAuthor)
+      return Ok(post.ToGetPostWithAuthorDetailsDto());
+
+    return Ok(post.ToGetPostDto());
+  }
+
+  // Add a new blog entry via /posts
+  [HttpPost]
+  public async Task<ActionResult<GetPostDto>> AddPost([FromBody] CreatePostDto newPost)
+  {
+    PostEntity post = newPost.ToEntity();
+
+    _dbContext.Posts.Add(post);
+    await _dbContext.SaveChangesAsync();
+
+    var postDto = post.ToGetPostDto();
+
+    return CreatedAtRoute("GetPostById", new { id = post.Id }, postDto);
+  }
+
+  // PUT - Update an existing entry via PUT to /posts/{id}
+  [HttpPut("{id:int}")]
+  public async Task<IActionResult> UpdatePost(int id, [FromBody] UpdatePostDto updatedPost)
+  {
+    PostEntity? existingPost = await _dbContext.Posts.FindAsync(id);
+    if (existingPost is null)
+      return NotFound();
+
+    _dbContext.Entry(existingPost)
+        .CurrentValues
+        .SetValues(updatedPost.ToEntity(id));
+
+    await _dbContext.SaveChangesAsync();
+
+    return NoContent();
+  }
+
+  // DELETE a post via /posts/{id}
+  [HttpDelete("{id:int}")]
+  public async Task<IActionResult> DeletePost(int id)
+  {
+    await _dbContext.Posts
+        .Where(post => post.Id == id)
+        .ExecuteDeleteAsync();
+
+    return NoContent();
+  }
+}
