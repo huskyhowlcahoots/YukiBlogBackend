@@ -11,14 +11,9 @@ namespace Blog.Api.Controllers.Posts;
 [Route("posts")]
 [Produces("application/json", "application/xml")]
 [Consumes("application/json", "application/xml")]
-public class PostsController : ControllerBase
+public class PostsController(BlogContext dbContext) : ControllerBase
 {
-  private readonly BlogContext _dbContext;
-
-  public PostsController(BlogContext dbContext)
-  {
-    _dbContext = dbContext;
-  }
+  private readonly BlogContext _dbContext = dbContext;
 
   // GET all via /posts
   [HttpGet]
@@ -97,9 +92,12 @@ public class PostsController : ControllerBase
   [HttpDelete("{id:int}")]
   public async Task<IActionResult> DeletePost(int id)
   {
-    await _dbContext.Posts
-        .Where(post => post.Id == id)
-        .ExecuteDeleteAsync();
+    var post = await _dbContext.Posts.FindAsync(id);
+    if (post == null)
+      return NotFound();
+
+    _dbContext.Posts.Remove(post);
+    await _dbContext.SaveChangesAsync();
 
     return NoContent();
   }
