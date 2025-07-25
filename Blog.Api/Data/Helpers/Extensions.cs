@@ -1,7 +1,9 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Blog.Api.Data.Helpers;
 
+[ExcludeFromCodeCoverage]
 public static class Extensions
 {
   public static async Task MigrateDb(this WebApplication app)
