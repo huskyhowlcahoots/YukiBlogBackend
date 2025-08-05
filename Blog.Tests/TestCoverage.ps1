@@ -1,5 +1,5 @@
 # Navigate into the test project directory
-Set-Location -Path "C:\dev\2025\YukiBlogBackend\Blog.Tests"
+Set-Location -Path "$PWD"
 
 # Run tests with specified settings and collect coverage
 dotnet test --settings "coverlet.runsettings" --collect:"XPlat Code Coverage"
