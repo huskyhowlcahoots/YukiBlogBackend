@@ -1,5 +1,7 @@
-# Move one level up
-Set-Location ..
+# Move to the Blog.Api Directory
+$ScriptDirectory = Split-Path -Path $MyInvocation.MyCommand.Definition -Parent
+$BlogApiProjectDirectory = Split-Path -Path $ScriptDirectory -Parent
+Set-Location $BlogApiProjectDirectory
 
 
 $folderPath = ".\.db"

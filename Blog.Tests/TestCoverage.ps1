@@ -1,5 +1,7 @@
 # Navigate into the test project directory
-Set-Location -Path "$PWD"
+$ScriptDirectory = Split-Path -Path $MyInvocation.MyCommand.Definition -Parent
+Set-Location -Path $ScriptDirectory
+
 
 # Run tests with specified settings and collect coverage
 dotnet test --settings "coverlet.runsettings" --collect:"XPlat Code Coverage"
