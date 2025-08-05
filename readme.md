@@ -8,7 +8,7 @@
 6. Run the application and take note of the port it's running on
 7. In the http files (YukiBlogBackend\Blog.Api\HttpTestFiles\), update line #1 in each file to use the correct port
 8. Test the application via the http files
-9. Once complete you can get a test coverage report by executing this file: "YukiBlogBackend\Blog.Tests\test-coverage.ps1"
+9. Once complete you can get a test coverage report by executing this file: "YukiBlogBackend\Blog.Tests\TestCoverage.ps1"
 
 
 ## Commands used wrt EF migrations and the database
